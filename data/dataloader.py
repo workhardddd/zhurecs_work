@@ -9,7 +9,7 @@ class DataLoader():
 		self.data_path = data_path
 
 	def load_adj(self):
-		df_adj = pd.read_csv(open(self.data_path) + '/adj.tsv', sep='\t', dtype={0:np.int32, 1:np.int32})
+		df_adj = pd.read_csv(open(self.data_path + '/adj.tsv'), sep='\t', dtype={0:np.int32, 1:np.int32})
 		return df_adj
 
 	def load_latest_session(self):
