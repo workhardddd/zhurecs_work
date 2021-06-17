@@ -35,7 +35,7 @@ class sessionpadding():
 		self.padding_y = dict(zip(list_k,y_list_v_afterpadding))
 		return self.padding_x,self.padding_y
 
-class construct_adj():
+class construct_graph():
 	def __init__(self,datadf,num_nodes,max_degree,adj_info,latest_peruser_time):
 		self.datadf = datadf
 		self.num_nodes = num_nodes
@@ -43,7 +43,7 @@ class construct_adj():
 		self.adj_info = adj_info
 		self.latest_peruser_time = latest_peruser_time
 		self.visible_time = self.user_visiable_time()
-		self.adj,self.deg = construct_adj()
+		self.adj,self.deg = self.construct_adj()
 
 	def construct_adj(self):
 		'''
@@ -62,7 +62,9 @@ class construct_adj():
 			if len(neighbors) > self.max_degree:
 				neighbors = np.random.choice(neighbors, self.max_degree, replace=False)
 			elif len(neighbors) < self.max_degree:
-				neighbors = np.random.choice(neighbors, self.max_degree, replace=True)
+				lentmp = self.max_degree - len(neighbors)
+				neighborstmp = np.random.choice(neighbors,lentmp,replace=True)
+				neighbors = np.concatenate((neighbors,neighborstmp))
 			adj[nodeid, :] = neighbors
 		return adj, deg
 
@@ -71,28 +73,52 @@ class construct_adj():
 		for l in self.latest_peruser_time:
 			timeid = max(loc for loc, val in enumerate(l) if val == 'NULL') + 1
 			visible_time.append(timeid)
+			assert timeid > 0 and timeid < len(l), 'Wrong when create visible time {}'.format(timeid)
 		return visible_time
 
-	def _remove_infoless(self):
+	def remove_infoless(self):
 		data = self.datadf.loc[self.deg[self.datadf['UserId']]!=0]
 		saved_session_ids = []
-		for sessid in self.datadf.SessionId.unique():
+		for sessid in data.SessionId.unique():
 			userid,timeid = sessid.split('_')
 			userid,timeid = int(userid),int(timeid)
 			count1 = 0
 			for neightbor in self.adj[userid, :]:
 				if self.visible_time[neightbor] <= timeid and self.deg[neightbor] > 0:
-					count2 = 0
-					for second_neighbor in self.adj[neightbor, :]:
-						if self.visible_time[second_neighbor] <= timeid:
-							break
-						count2 += 1
-					if count2 < self.max_degree:
-						break
-				count1 += 1
-			if count1 < self.max_degree:
+					count1 += 1
+
+			if count1 < self.max_degree and count1>0:
 				saved_session_ids.append(sessid)
 		return saved_session_ids
+
+	def make_layer_1(self,num_samples_1,nodeids,timeids):
+		adj_lists_1 = []
+		num_samples_1 = num_samples_1
+		nodeids = nodeids
+		timeids = timeids
+		for idx in range(len(nodeids)):
+			node = nodeids[idx]
+			timeid = timeids[idx]
+			adj = self.adj[node,:]
+			neighbors = []
+			for neighbor in adj:
+				if self.visible_time[neighbor] <= timeid and self.deg[neighbor] > 0:
+					# for second_neighbor in self.adj[neighbor]:
+					# 	if self.visible_time[second_neighbor] <= timeid:
+					# 		for second_neighbor in self.adj[neighbor]:
+					# 			if self.visible_time[second_neighbor] <= timeid:
+					# 				neighbors.append(neighbor)
+					# 				break
+					neighbors.append(neighbor)
+
+			assert len(neighbors) > 0
+			if len(neighbors) < num_samples_1:
+				neighbors = np.random.choice(neighbors, num_samples_1, replace=True)
+			elif len(neighbors) >= num_samples_1:
+				neighbors = np.random.choice(neighbors, num_samples_1, replace=False)
+			adj_lists_1.append(neighbors)
+		return np.array(adj_lists_1,dtype = np.int32)
+
 
 
 
@@ -109,4 +135,12 @@ if __name__=='__main__':
 	valid_df = data[5]
 	test_df = data[6]
 	train_padding_x,train_padding_y = sessionpadding(train_df).padding()
-	#adj,deg = construct_adj(datadf=train_df,num_nodes=len(user_id_map),max_degree=50,adj_info=adj_info)
+	train_sessionids = construct_graph(datadf=train_df,num_nodes=len(user_id_map),
+	              max_degree=50,adj_info=adj_info,
+	              latest_peruser_time=latest_per_user_by_time).remove_infoless()
+	nodeids = [int(sessionid.split('_')[0]) for sessionid in train_sessionids]
+	timeids = [int(sessionid.split('_')[1]) for sessionid in train_sessionids]
+	train_layer1 = construct_graph(datadf=train_df,num_nodes=len(user_id_map),
+	                     max_degree=50,adj_info=adj_info,
+	                     latest_peruser_time=latest_per_user_by_time).make_layer_1(num_samples_1=10,nodeids=nodeids,timeids=timeids)
+	print(train_sessionids)
