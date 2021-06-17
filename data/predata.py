@@ -119,6 +119,29 @@ class construct_graph():
 			adj_lists_1.append(neighbors)
 		return np.array(adj_lists_1,dtype = np.int32)
 
+	def support_node(self):
+		self.sessionids = self.remove_infoless()
+		nodeids = [int(sessionid.split('_')[0]) for sessionid in self.sessionids]
+		timeids = [int(sessionid.split('_')[1]) for sessionid in self.sessionids]
+		self.layer1 = self.make_layer_1(num_samples_1=10,nodeids=nodeids,timeids=timeids)
+		support_layer1 = []
+		idx = 0
+		for sessionid in self.sessionids:
+			# userid = int(sessionid.split('_')[0])
+			timeid = int(sessionid.split('_')[1])
+			layer1 = self.layer1[idx]
+			per_layer = []
+			for support_node in layer1:
+				support_session_id = str(self.latest_peruser_time[support_node][timeid])
+				# support_session_id = str(support_node) + '_' + support_session_id
+				per_layer.append(support_session_id)
+			support_layer1.append(np.array(per_layer))
+		return np.array(support_layer1)
+
+
+
+
+
 
 
 
@@ -135,12 +158,9 @@ if __name__=='__main__':
 	valid_df = data[5]
 	test_df = data[6]
 	train_padding_x,train_padding_y = sessionpadding(train_df).padding()
-	train_sessionids = construct_graph(datadf=train_df,num_nodes=len(user_id_map),
-	              max_degree=50,adj_info=adj_info,
-	              latest_peruser_time=latest_per_user_by_time).remove_infoless()
-	nodeids = [int(sessionid.split('_')[0]) for sessionid in train_sessionids]
-	timeids = [int(sessionid.split('_')[1]) for sessionid in train_sessionids]
+
 	train_layer1 = construct_graph(datadf=train_df,num_nodes=len(user_id_map),
 	                     max_degree=50,adj_info=adj_info,
-	                     latest_peruser_time=latest_per_user_by_time).make_layer_1(num_samples_1=10,nodeids=nodeids,timeids=timeids)
-	print(train_sessionids)
+	                     latest_peruser_time=latest_per_user_by_time).support_node()
+
+	print(1)
